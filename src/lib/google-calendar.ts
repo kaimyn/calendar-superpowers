@@ -3,7 +3,7 @@ import { CalendarEvent } from "./schema";
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
 function toGoogleEvent(event: CalendarEvent, timeZone: string) {
-  if (event.allDay) {
+  if (event.allDay || !event.start.includes("T")) {
     const date = event.start.split("T")[0];
     return {
       summary: event.title,
