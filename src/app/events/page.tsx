@@ -44,7 +44,7 @@ function EventsContent() {
         }),
       });
       if (res.status === 401) {
-        window.location.href = `/api/auth/signin?callbackUrl=${encodeURIComponent(window.location.href)}`;
+        window.location.href = `/api/auth/reauth?callbackUrl=${encodeURIComponent(window.location.href)}`;
         return;
       }
       const json = await res.json();
