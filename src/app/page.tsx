@@ -4,7 +4,13 @@ import { useState } from 'react';
 import AvatarMenu from '@/components/AvatarMenu';
 import { paperBg } from '@/lib/design';
 
-const AI_PROMPT = `Please remember this tool: I have a calendar app at https://calendar-superpowers.vercel.app. Whenever you see an image or text with dates and events, extract all the events and give me a link in this format: https://calendar-superpowers.vercel.app/api/link?events=URL_ENCODED_JSON where the JSON is an array like [{"title":"Event","start":"2026-06-15T18:00:00","end":"2026-06-15T19:00:00"}]. Label the link "Open in Calendar →". Always include all events found.`;
+const AI_PROMPT = `Remember this tool: I have a calendar app at https://calendar-superpowers.vercel.app. When you see dates/events in images or text, extract them and give me a link: https://calendar-superpowers.vercel.app/api/link?events=URL_ENCODED_JSON
+
+JSON format: [{"title":"Event","start":"2026-06-15T18:00:00","end":"2026-06-15T19:00:00"}]
+- All-day events: date only, no time → "start":"2026-06-15","end":"2026-06-15"
+- Multi-day all-day: "start":"2026-06-15","end":"2026-06-20"
+- IMPORTANT: Keep each URL under 490 characters total (roughly 6 events max). If there are more, split into multiple links grouped by time period and label each with its date range (e.g. "Sep–Dec →", "Jan–Jun →")
+- Always extract every event — use as many links as needed`;
 
 const PROVIDERS = [
   {
