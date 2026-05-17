@@ -9,9 +9,18 @@ type Props = {
   onEdit: (updated: CalendarEvent) => void;
 };
 
+function isDateOnly(iso: string) {
+  return !iso.includes("T");
+}
+
 function formatDateTime(iso: string, allDay?: boolean): string {
+  if (allDay || isDateOnly(iso)) {
+    // Parse date-only strings as local date to avoid UTC-offset shifting the day
+    const [year, month, day] = iso.split("T")[0].split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  }
   const date = new Date(iso);
-  if (allDay) return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   return date.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
@@ -37,7 +46,7 @@ export default function EventCard({ event, checked, onChange, onEdit }: Props) {
             <div className="flex items-center gap-1">
               <span>📅</span>
               <span>{formatDateTime(event.start, event.allDay)}</span>
-              {event.end && !event.allDay && (
+              {event.end && !event.allDay && !isDateOnly(event.start) && (
                 <span>→ {formatDateTime(event.end)}</span>
               )}
             </div>
