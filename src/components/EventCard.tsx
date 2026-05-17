@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { CalendarEvent } from "@/lib/schema";
 
 type Props = {
@@ -13,15 +14,45 @@ function isDateOnly(iso: string) {
   return !iso.includes("T");
 }
 
-function formatDateTime(iso: string, allDay?: boolean): string {
-  if (allDay || isDateOnly(iso)) {
-    // Parse date-only strings as local date to avoid UTC-offset shifting the day
-    const [year, month, day] = iso.split("T")[0].split("-").map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+function parseLocalDate(iso: string): Date {
+  const [year, month, day] = iso.split("T")[0].split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDate(iso: string): string {
+  return parseLocalDate(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function isMultiDay(start: string, end: string): boolean {
+  return start.split("T")[0] !== end.split("T")[0];
+}
+
+function renderDateRange(event: CalendarEvent): React.ReactNode {
+  const allDay = event.allDay || isDateOnly(event.start);
+
+  if (allDay) {
+    const hasEnd = event.end && isMultiDay(event.start, event.end);
+    if (hasEnd) {
+      return (
+        <span className="inline-flex items-center gap-1">
+          <span className="rounded-full bg-violet-100 text-violet-700 text-xs font-medium px-2 py-0.5">Multi-day</span>
+          <span>{formatDate(event.start)} → {formatDate(event.end!)}</span>
+        </span>
+      );
+    }
+    return <span>{formatDate(event.start)}</span>;
   }
-  const date = new Date(iso);
-  return date.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+
+  return (
+    <>
+      <span>{formatDateTime(event.start)}</span>
+      {event.end && <span>→ {formatDateTime(event.end)}</span>}
+    </>
+  );
 }
 
 export default function EventCard({ event, checked, onChange, onEdit }: Props) {
@@ -43,12 +74,9 @@ export default function EventCard({ event, checked, onChange, onEdit }: Props) {
             placeholder="Event title"
           />
           <div className="mt-1 space-y-1 text-sm text-gray-600">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap">
               <span>📅</span>
-              <span>{formatDateTime(event.start, event.allDay)}</span>
-              {event.end && !event.allDay && !isDateOnly(event.start) && (
-                <span>→ {formatDateTime(event.end)}</span>
-              )}
+              {renderDateRange(event)}
             </div>
             {event.location && (
               <div className="flex items-center gap-1">
