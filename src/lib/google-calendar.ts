@@ -26,7 +26,7 @@ export async function addEventToCalendar(
   accessToken: string,
   event: CalendarEvent,
   timeZone = "UTC"
-): Promise<{ ok: boolean; title: string }> {
+): Promise<{ ok: boolean; title: string; link?: string }> {
   try {
     const res = await fetch(CALENDAR_API, {
       method: "POST",
