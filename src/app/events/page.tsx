@@ -278,6 +278,12 @@ function EventsContent() {
       <div style={{ flexShrink: 0, padding: '20px 20px 0' }}>
         <TopBar showLeft={false} />
 
+        {/* Title */}
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 32, color: '#1c1610', letterSpacing: -0.8, lineHeight: 1.1, marginTop: 20, marginBottom: 16 }}>
+          Add these to your<br />
+          <span style={{ fontStyle: 'italic', color: '#b14a2b' }}>calendar.</span>
+        </div>
+
         {/* Ribbon */}
         <MobileRibbon
           events={events.map(e => ({ id: e.id, startISO: e.startISO, endISO: e.endISO, multiDay: e.multiDay }))}
