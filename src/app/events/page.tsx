@@ -10,7 +10,7 @@ function EventsContent() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [checked, setChecked] = useState<boolean[]>([]);
   const [status, setStatus] = useState<"idle" | "adding" | "done" | "error">("idle");
-  const [results, setResults] = useState<{ title: string; ok: boolean; link?: string }[]>([]);
+  const [results, setResults] = useState<{ title: string; ok: boolean; link?: string; error?: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,7 +85,7 @@ function EventsContent() {
                 <span className="text-sm font-medium text-gray-800">{r.title}</span>
                 {r.ok && r.link
                   ? <a href={r.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline ml-auto">View →</a>
-                  : <span className="text-sm text-gray-500 ml-auto">{r.ok ? "Added" : "Failed"}</span>
+                  : <span className="text-sm text-gray-500 ml-auto">{r.ok ? "Added" : (r.error ?? "Failed")}</span>
                 }
               </div>
             ))}

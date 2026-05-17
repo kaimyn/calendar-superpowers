@@ -31,25 +31,27 @@ export async function addEventToCalendar(
   accessToken: string,
   event: CalendarEvent,
   timeZone = "UTC"
-): Promise<{ ok: boolean; title: string; link?: string }> {
+): Promise<{ ok: boolean; title: string; link?: string; error?: string }> {
   try {
+    const payload = toGoogleEvent(event, timeZone);
+    console.log(`[calendar] Adding "${event.title}":`, JSON.stringify(payload));
     const res = await fetch(CALENDAR_API, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(toGoogleEvent(event, timeZone)),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.text();
       console.error(`[calendar] Failed to add "${event.title}": ${res.status} ${err}`);
-      return { ok: false, title: event.title };
+      return { ok: false, title: event.title, error: `${res.status}: ${err}` };
     }
     const json = await res.json();
     return { ok: true, title: event.title, link: json.htmlLink as string };
   } catch (e) {
     console.error(`[calendar] Exception adding "${event.title}":`, e);
-    return { ok: false, title: event.title };
+    return { ok: false, title: event.title, error: String(e) };
   }
 }
