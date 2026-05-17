@@ -9,8 +9,9 @@ export type CalendarEvent = {
 
 export function encodeEvents(events: CalendarEvent[]): string {
   const json = JSON.stringify(events);
-  // base64url: URL-safe, no padding
-  return btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  // UTF-8 safe base64url: handles accented chars, emoji, etc.
+  const base64 = btoa(unescape(encodeURIComponent(json)));
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export function decodeEvents(data: string): CalendarEvent[] {
@@ -18,7 +19,7 @@ export function decodeEvents(data: string): CalendarEvent[] {
     // Restore standard base64 from base64url
     const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    const json = atob(padded);
+    const json = decodeURIComponent(escape(atob(padded)));
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed)) throw new Error("Expected array");
     return parsed as CalendarEvent[];
