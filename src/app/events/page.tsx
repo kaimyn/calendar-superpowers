@@ -1,127 +1,359 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import { CalendarEvent, decodeEvents } from "@/lib/schema";
-import EventCard from "@/components/EventCard";
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { decodeEvents } from '@/lib/schema';
+import { isMultiDay, paperBg } from '@/lib/design';
+import MobileCard from '@/components/MobileCard';
+import MobileRibbon from '@/components/MobileRibbon';
+import TopBar from '@/components/TopBar';
+
+type DesignEvent = {
+  id: string;
+  title: string;
+  startISO: string;
+  endISO: string;
+  multiDay: boolean;
+  // original fields for API
+  start: string;
+  end?: string;
+};
+
+type ResultItem = { title: string; ok: boolean; link?: string; error?: string };
 
 function EventsContent() {
   const searchParams = useSearchParams();
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [checked, setChecked] = useState<boolean[]>([]);
-  const [status, setStatus] = useState<"idle" | "adding" | "done" | "error">("idle");
-  const [results, setResults] = useState<{ title: string; ok: boolean; link?: string; error?: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const [screen, setScreen] = useState<'review' | 'loading' | 'success' | 'fail'>('review');
+  const [events, setEvents] = useState<DesignEvent[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmedEvents, setConfirmedEvents] = useState<DesignEvent[]>([]);
+  const [results, setResults] = useState<ResultItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   useEffect(() => {
-    const data = searchParams.get("data");
+    const data = searchParams.get('data');
     if (!data) return;
     const decoded = decodeEvents(data);
-    setEvents(decoded);
-    setChecked(decoded.map(() => true));
+    const designEvents: DesignEvent[] = decoded
+      .map((e, i) => ({
+        id: i.toString(),
+        title: e.title,
+        startISO: e.start,
+        endISO: e.end ?? e.start,
+        multiDay: isMultiDay(e.start, e.end),
+        start: e.start,
+        end: e.end,
+      }))
+      .sort((a, b) => a.startISO.localeCompare(b.startISO));
+    setEvents(designEvents);
+    setSelected(new Set(designEvents.map(e => e.id)));
   }, [searchParams]);
 
-  const selected = events.filter((_, i) => checked[i]);
+  const handleRibbonTap = useCallback((id: string) => {
+    setActiveId(id);
+    setTimeout(() => setActiveId(null), 1400);
 
-  function updateEvent(index: number, updated: CalendarEvent) {
-    setEvents((prev) => prev.map((e, i) => (i === index ? updated : e)));
-  }
+    // Scroll to card manually
+    if (scrollRef.current) {
+      const card = cardRefs.current.get(id);
+      if (card) {
+        const containerTop = scrollRef.current.getBoundingClientRect().top;
+        const cardTop = card.getBoundingClientRect().top;
+        const currentScroll = scrollRef.current.scrollTop;
+        const target = currentScroll + (cardTop - containerTop) - 24;
+        scrollRef.current.scrollTo({ top: target, behavior: 'smooth' });
+      }
+    }
+  }, []);
 
-  function toggleAll(value: boolean) {
-    setChecked(events.map(() => value));
-  }
+  const toggleEvent = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
-  async function addToCalendar() {
-    setStatus("adding");
-    setError(null);
+  const handleConfirm = async () => {
+    const toAdd = events.filter(e => selected.has(e.id));
+    setConfirmedEvents(toAdd);
+    setScreen('loading');
+
     try {
-      const res = await fetch("/api/calendar/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/calendar/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          events: selected,
+          events: toAdd.map(e => ({ title: e.title, start: e.start, end: e.end })),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
+
       if (res.status === 401) {
         window.location.href = `/api/auth/reauth?callbackUrl=${encodeURIComponent(window.location.href)}`;
         return;
       }
+
       const json = await res.json();
       setResults(json.results ?? []);
-      setStatus("done");
+      setScreen('success');
     } catch {
-      setStatus("error");
-      setError("Something went wrong. Please try again.");
+      setScreen('fail');
     }
-  }
+  };
 
-  if (events.length === 0) {
+  // Empty state
+  if (events.length === 0 && screen === 'review') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-2">
-          <p className="text-xl font-semibold text-gray-700">No events found</p>
-          <p className="text-sm text-gray-500">The link may be malformed or expired.</p>
+      <div style={{ ...paperBg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: '#1c1610', letterSpacing: -0.4 }}>No events found</div>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: '#8a7c66', marginTop: 8 }}>The link may be malformed or expired.</div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-lg mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Add to Calendar</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {events.length} event{events.length !== 1 ? "s" : ""} found. Review and select which to add.
-          </p>
+  // LOADING screen
+  if (screen === 'loading') {
+    return (
+      <div style={{ ...paperBg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+        <div style={{
+          width: 52, height: 52,
+          border: '3px solid #e6dcc8',
+          borderTopColor: '#b14a2b',
+          borderRadius: '50%',
+          animation: 'spinE 0.9s linear infinite',
+        }} />
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: '#1c1610', letterSpacing: -0.3 }}>
+          Adding {confirmedEvents.length} event{confirmedEvents.length !== 1 ? 's' : ''}…
         </div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#8a7c66', letterSpacing: 0.8 }}>
+          Talking to Google Calendar
+        </div>
+      </div>
+    );
+  }
 
-        {status === "done" ? (
-          <div className="space-y-3">
-            {results.map((r) => (
-              <div key={r.title} className={`flex items-center gap-2 rounded-xl border p-4 ${r.ok ? "border-green-300 bg-green-50" : "border-red-300 bg-red-50"}`}>
-                <span>{r.ok ? "✅" : "❌"}</span>
-                <span className="text-sm font-medium text-gray-800">{r.title}</span>
-                {r.ok && r.link
-                  ? <a href={r.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline ml-auto">View →</a>
-                  : <span className="text-sm text-gray-500 ml-auto">{r.ok ? "Added" : (r.error ?? "Failed")}</span>
+  // SUCCESS screen
+  if (screen === 'success') {
+    const allOk = results.every(r => r.ok);
+    return (
+      <div style={{ ...paperBg, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ maxWidth: 520, width: '100%', margin: '0 auto', padding: '20px 24px 0' }}>
+          <TopBar showLeft={false} />
+        </div>
+        <div style={{ maxWidth: 520, width: '100%', margin: '0 auto', padding: '0 24px', flex: 1 }}>
+          {/* Wobbly checkmark */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 40, paddingBottom: 32 }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: allOk ? '#3d6048' : '#b14a2b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'wobbleE 500ms ease-out forwards',
+            }}>
+              <svg width="32" height="32" viewBox="0 0 32 32">
+                {allOk
+                  ? <path d="M8 16L14 22L24 10" stroke="#dceadd" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  : <path d="M10 10L22 22M22 10L10 22" stroke="#fbeadf" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
                 }
+              </svg>
+            </div>
+            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 28, color: '#1c1610', letterSpacing: -0.6, marginTop: 20 }}>
+              {allOk ? 'All added!' : 'Some events failed'}
+            </div>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: '#8a7c66', marginTop: 6 }}>
+              {results.filter(r => r.ok).length} of {results.length} added to your calendar
+            </div>
+          </div>
+
+          {/* Receipt */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {results.map((r, i) => (
+              <div key={i} style={{
+                background: '#fbf6ec',
+                border: `1px solid ${r.ok ? '#c8d9ca' : '#e6c4b8'}`,
+                borderRadius: 12,
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                boxShadow: '0 2px 8px -4px rgba(28,22,16,0.10)',
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: r.ok ? '#3d6048' : '#b14a2b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  animation: 'popInE 300ms ease-out forwards',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 14 14">
+                    {r.ok
+                      ? <path d="M3 7L6 10L11 4" stroke="#dceadd" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      : <path d="M4 4L10 10M10 4L4 10" stroke="#fbeadf" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    }
+                  </svg>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: '#1c1610', letterSpacing: -0.2 }}>{r.title}</div>
+                  {!r.ok && r.error && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#b14a2b', letterSpacing: 0.3, marginTop: 3 }}>{r.error}</div>
+                  )}
+                </div>
+                {r.ok && r.link && (
+                  <a
+                    href={r.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#b14a2b', letterSpacing: 0.4, textDecoration: 'none', flexShrink: 0 }}
+                  >
+                    View →
+                  </a>
+                )}
               </div>
             ))}
-            <p className="text-sm text-gray-500 text-center pt-2">You can close this page.</p>
           </div>
-        ) : (
-          <>
-            <div className="flex justify-between items-center text-sm text-gray-500">
-              <button onClick={() => toggleAll(true)} className="hover:text-blue-600">Select all</button>
-              <span>{selected.length} of {events.length} selected</span>
-              <button onClick={() => toggleAll(false)} className="hover:text-blue-600">Deselect all</button>
-            </div>
 
-            <div className="space-y-3">
-              {events.map((event, i) => (
-                <EventCard
-                  key={i}
-                  event={event}
-                  checked={checked[i]}
-                  onChange={(val) => setChecked((prev) => prev.map((c, j) => (j === i ? val : c)))}
-                  onEdit={(updated) => updateEvent(i, updated)}
-                />
-              ))}
-            </div>
-
-            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
-
+          <div style={{ paddingTop: 28, paddingBottom: 40, display: 'flex', justifyContent: 'center' }}>
             <button
-              onClick={addToCalendar}
-              disabled={selected.length === 0 || status === "adding"}
-              className="w-full rounded-xl bg-blue-600 py-3 text-white font-semibold text-base hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={() => router.push('/')}
+              style={{ all: 'unset' as const, cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#8a7c66', letterSpacing: 0.6 }}
             >
-              {status === "adding" ? "Adding…" : `Add ${selected.length} event${selected.length !== 1 ? "s" : ""} to Google Calendar`}
+              Close
             </button>
-          </>
-        )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // FAIL screen
+  if (screen === 'fail') {
+    return (
+      <div style={{ ...paperBg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 24px' }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: '#b14a2b',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'wobbleE 500ms ease-out forwards',
+        }}>
+          <svg width="32" height="32" viewBox="0 0 32 32">
+            <path d="M10 10L22 22M22 10L10 22" stroke="#fbeadf" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: '#1c1610', letterSpacing: -0.5, textAlign: 'center' }}>
+          Something went wrong
+        </div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: '#8a7c66', textAlign: 'center' }}>
+          Please try again.
+        </div>
+        <button
+          onClick={() => setScreen('review')}
+          style={{
+            all: 'unset' as const, cursor: 'pointer',
+            marginTop: 16,
+            padding: '12px 28px',
+            background: '#1c1610', color: '#fbf6ec',
+            borderRadius: 10, fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: 0.6,
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  // REVIEW screen
+  const selCount = selected.size;
+
+  return (
+    <div style={{ ...paperBg, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Fixed header */}
+      <div style={{ flexShrink: 0, padding: '20px 20px 0' }}>
+        <TopBar showLeft={false} />
+
+        {/* Ribbon */}
+        <MobileRibbon
+          events={events.map(e => ({ id: e.id, startISO: e.startISO, endISO: e.endISO, multiDay: e.multiDay }))}
+          selected={selected}
+          activeId={activeId}
+          onTap={handleRibbonTap}
+        />
+
+        {/* Count + controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 12 }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: '#1c1610', letterSpacing: -0.3 }}>
+            {selCount} of {events.length} selected
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              onClick={() => setSelected(new Set(events.map(e => e.id)))}
+              style={{ all: 'unset' as const, cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#5e5447', letterSpacing: 0.5 }}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              style={{ all: 'unset' as const, cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#5e5447', letterSpacing: 0.5 }}
+            >
+              None
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable card list */}
+      <div
+        ref={scrollRef}
+        style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4, paddingBottom: 120 }}>
+          {events.map(event => (
+            <MobileCard
+              key={event.id}
+              event={event}
+              selected={selected.has(event.id)}
+              active={activeId === event.id}
+              onToggle={() => toggleEvent(event.id)}
+              refCb={(node) => {
+                if (node) cardRefs.current.set(event.id, node);
+                else cardRefs.current.delete(event.id);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Sticky CTA */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        padding: '12px 20px 28px',
+        background: 'linear-gradient(to top, #f5efe2 70%, transparent)',
+      }}>
+        <button
+          onClick={handleConfirm}
+          disabled={selCount === 0}
+          style={{
+            all: 'unset' as const,
+            cursor: selCount === 0 ? 'not-allowed' : 'pointer',
+            display: 'block', width: '100%', boxSizing: 'border-box',
+            background: selCount === 0 ? '#c4b89a' : '#1c1610',
+            color: '#fbf6ec',
+            borderRadius: 14, padding: '16px 20px',
+            fontFamily: 'var(--font-serif)', fontSize: 19, letterSpacing: -0.3,
+            textAlign: 'center',
+            boxShadow: selCount === 0 ? 'none' : '0 8px 20px -8px rgba(28,22,16,0.4)',
+            transition: 'background 200ms, box-shadow 200ms',
+          }}
+        >
+          Add {selCount} event{selCount !== 1 ? 's' : ''} to Google Calendar
+        </button>
       </div>
     </div>
   );

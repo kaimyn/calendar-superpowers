@@ -1,26 +1,12 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+@keyframes spinE { to { transform: rotate(360deg); } }
+@keyframes popInE { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes wobbleE {
+  0% { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  50% { transform: scale(1.1) rotate(6deg); opacity: 1; }
+  70% { transform: scale(0.96) rotate(-3deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+@keyframes fadeInDownE { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
