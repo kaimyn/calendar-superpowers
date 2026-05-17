@@ -39,8 +39,10 @@ export async function addEventToCalendar(
     if (!res.ok) {
       const err = await res.text();
       console.error(`[calendar] Failed to add "${event.title}": ${res.status} ${err}`);
+      return { ok: false, title: event.title };
     }
-    return { ok: res.ok, title: event.title };
+    const json = await res.json();
+    return { ok: true, title: event.title, link: json.htmlLink as string };
   } catch (e) {
     console.error(`[calendar] Exception adding "${event.title}":`, e);
     return { ok: false, title: event.title };

@@ -10,7 +10,7 @@ function EventsContent() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [checked, setChecked] = useState<boolean[]>([]);
   const [status, setStatus] = useState<"idle" | "adding" | "done" | "error">("idle");
-  const [results, setResults] = useState<{ title: string; ok: boolean }[]>([]);
+  const [results, setResults] = useState<{ title: string; ok: boolean; link?: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,7 +83,10 @@ function EventsContent() {
               <div key={r.title} className={`flex items-center gap-2 rounded-xl border p-4 ${r.ok ? "border-green-300 bg-green-50" : "border-red-300 bg-red-50"}`}>
                 <span>{r.ok ? "✅" : "❌"}</span>
                 <span className="text-sm font-medium text-gray-800">{r.title}</span>
-                <span className="text-sm text-gray-500 ml-auto">{r.ok ? "Added" : "Failed"}</span>
+                {r.ok && r.link
+                  ? <a href={r.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline ml-auto">View →</a>
+                  : <span className="text-sm text-gray-500 ml-auto">{r.ok ? "Added" : "Failed"}</span>
+                }
               </div>
             ))}
             <p className="text-sm text-gray-500 text-center pt-2">You can close this page.</p>
