@@ -4,13 +4,18 @@ const CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/e
 
 function toGoogleEvent(event: CalendarEvent, timeZone: string) {
   if (event.allDay || !event.start.includes("T")) {
-    const date = event.start.split("T")[0];
+    const startDate = event.start.split("T")[0];
+    const endDate = event.end ? event.end.split("T")[0] : startDate;
+    // Google Calendar requires exclusive end dates — advance by 1 day when start === end
+    const exclusiveEnd = startDate === endDate
+      ? new Date(new Date(startDate + "T00:00:00").getTime() + 86400000).toISOString().split("T")[0]
+      : endDate;
     return {
       summary: event.title,
       location: event.location,
       description: event.description,
-      start: { date },
-      end: { date: event.end ? event.end.split("T")[0] : date },
+      start: { date: startDate },
+      end: { date: exclusiveEnd },
     };
   }
   return {
